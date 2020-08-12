@@ -15,7 +15,7 @@ az configure --default group=$rgName
 echo "Resource created"
 
 # TODO: provision VM
-az vm create -n $vmName --size "$vmSize" --image "$vmImage" --admin-username "student" --assign-identity
+az vm create -n $vmName --size "$vmSize" --image "$vmImage" --admin-username "student" --assign-identity --generate-ssh-keys
 az configure --default vm="$vmName"
 echo "VM provisioned"
 

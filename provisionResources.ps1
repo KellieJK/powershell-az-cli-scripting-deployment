@@ -1,52 +1,61 @@
-# TODO: set variables
-$studentName = "kelliek"
-$rgName = "kelliek-lc0820-ps-rg"
-$vmName = "kelliek-lc0820-ps-vm"
-$vmSize = "Standard_B2s"
-$vmImage = "Canonical:UbuntuServer:18.04-LTS:latest"
-$vmAdminUsername = "student"
-$kvName = "$studentName-lc0820-ps-kv"
-$kvSecretName = "ConnectionStrings--Default"
-$kvSecretValue = "server=localhost;port=3306;database=coding_events;user=coding_events;password=launchcode"
-
-# TODO: provision RG
-az group create -n $rgName
-az configure --default group=$rgName
-echo "Resource created"
-
-# TODO: provision VM
-az vm create -n $vmName --size "$vmSize" --image "$vmImage" --admin-username "student" --assign-identity --generate-ssh-keys
-az configure --default vm="$vmName"
-echo "VM provisioned"
-
-# TODO: capture the VM systemAssignedIdentity
-$systemAssignedIdentity="$(az vm show --query "identity.principalId" -o tsv)"
-
-# TODO: open vm port 443
-az vm open-port --port 443
-echo "port opened"
-
-# provision KV
-az keyvault create -n "$kvName" --enable-soft-delete false --enabled-for-deployment true
-echo "KV created"
-
-# TODO: create KV secret (database connection string)
-az keyvault secret set --vault-name "$kvName" -n "$kvSecretName" --value "$kvSecretValue"
-echo "secret created"
-
-# TODO: set KV access-policy (using the vm ``systemAssignedIdentity``)
-az keyvault set-policy -n "$kvName" --object-id "$systemAssignedIdentity" --secret-permissions get list
-echo "policy created, starting 1configure"
-
-az vm run-command invoke --command-id RunShellScript --scripts @vm-configuration-scripts/1configure-vm.sh
-echo "1configure complete, starting 2configure"
-
-az vm run-command invoke --command-id RunShellScript --scripts @vm-configuration-scripts/2configure-ssl.sh
-echo "2configure complete, starting deploy"
-
-az vm run-command invoke --command-id RunShellScript --scripts @deliver-deploy.sh
-echo "deploy complete"
 
 
-# TODO: print VM public IP address to STDOUT or save it as a file
-write-output (az vm list-ip-addresses -n $vmName -g $rgName | convertfrom-json)[0].virtualmachine.network.publicipaddresses.ipaddress
+# needed to use dotnet from within RunCommand
+export HOME=/home/student
+export DOTNET_CLI_HOME=/home/student
+
+# -- end env vars --
+
+# -- set up API service --
+
+# create API service user and dirs
+useradd -M "$api_service_user" -N
+mkdir "$api_working_dir"
+
+chmod 700 /opt/coding-events-api/
+chown $api_service_user /opt/coding-events-api/
+
+# generate API unit file
+cat << EOF > /etc/systemd/system/coding-events-api.service
+[Unit]
+Description=Coding Events API
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+User=$api_service_user
+WorkingDirectory=$api_working_dir
+ExecStart=/usr/bin/dotnet ${api_working_dir}/CodingEventsAPI.dll
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=coding-events-api
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+Environment=DOTNET_HOME=$api_working_dir
+EOF
+
+# -- end setup API service --
+
+# -- deliver --
+
+# deliver source code
+
+git clone https://github.com/$github_username/coding-events-api /tmp/coding-events-api
+
+cd /tmp/coding-events-api/CodingEventsAPI
+
+# checkout branch that has the appsettings.json we need to connect to the KV
+git checkout $solution_branch
+
+dotnet publish -c Release -r linux-x64 -o "$api_working_dir"
+
+# -- end deliver --
+
+# -- deploy --
+
+# start API service
+service coding-events-api start
+
+# -- end deploy --

@@ -58,4 +58,4 @@ dotnet publish -c Release -r linux-x64 -o "$api_working_dir"
 # start API service
 service coding-events-api start
 
-# -- end deploy --
+# -- end deploy -- 

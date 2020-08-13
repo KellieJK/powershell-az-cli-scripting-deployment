@@ -1,4 +1,20 @@
+#! /usr/bin/env bash
 
+set -ex
+
+# -- env vars --
+
+# for cloning in delivery
+
+# TODO: enter your GitHub user name
+github_username=kelliejk
+
+# TODO: enter the name of your project branch that has your updated code
+solution_branch=3-aadb2c
+
+# api
+api_service_user=api-user
+api_working_dir=/opt/coding-events-api
 
 # needed to use dotnet from within RunCommand
 export HOME=/home/student
@@ -58,4 +74,5 @@ dotnet publish -c Release -r linux-x64 -o "$api_working_dir"
 # start API service
 service coding-events-api start
 
-# -- end deploy -- 
+# -- end deploy --
+
